@@ -16,6 +16,8 @@ export function initTernaryFpgaUi() {
   const modeButtons = Array.from(document.querySelectorAll('[data-mode]'));
   const clockBtn = document.getElementById('btn-clock');
   const resetBtn = document.getElementById('btn-reset');
+  const decimalInput = document.getElementById('input-decimal');
+  const plotBtn = document.getElementById('btn-plot');
   const modeNoteEl = document.getElementById('mode-note');
   const decimalEl = document.getElementById('stat-decimal');
   const vectorEl = document.getElementById('stat-vector');
@@ -66,10 +68,47 @@ export function initTernaryFpgaUi() {
   }
 
   if (clockBtn) {
+    const idleLabel = clockBtn.dataset.idleLabel || clockBtn.textContent.trim() || 'Ternary Pulse';
+    const activeLabel = clockBtn.dataset.activeLabel || 'Pause Pulse';
     clockBtn.addEventListener('click', () => {
       const running = controller.toggleClock();
-      clockBtn.textContent = running ? 'Pause Pulse' : 'Ternary Pulse';
+      clockBtn.textContent = running ? activeLabel : idleLabel;
       clockBtn.setAttribute('aria-pressed', String(running));
+    });
+  }
+
+  function handlePlotDecimal() {
+    if (!decimalInput) return;
+    const raw = decimalInput.value.trim();
+    if (!raw) {
+      decimalInput.focus();
+      return;
+    }
+    if (!/^[+-]?\d+$/.test(raw)) {
+      decimalInput.classList.add('input-error', 'border-red-500');
+      decimalInput.focus();
+      return;
+    }
+    decimalInput.classList.remove('input-error', 'border-red-500');
+    controller.toggleClock(false);
+    if (clockBtn) {
+      clockBtn.textContent = clockBtn.dataset.idleLabel || 'Ternary Pulse';
+      clockBtn.setAttribute('aria-pressed', 'false');
+    }
+    const activeMode = controller.setDecimalValue(BigInt(raw));
+    setActiveButton(activeMode);
+  }
+
+  if (plotBtn) {
+    plotBtn.addEventListener('click', handlePlotDecimal);
+  }
+
+  if (decimalInput) {
+    decimalInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') handlePlotDecimal();
+    });
+    decimalInput.addEventListener('input', () => {
+      decimalInput.classList.remove('input-error', 'border-red-500');
     });
   }
 

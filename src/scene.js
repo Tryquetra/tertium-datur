@@ -219,6 +219,30 @@ function getWord21Coords() {
 }
 
 /**
+ * Decomposes a BigInt decimal integer into `count` balanced trits {-1, 0, +1},
+ * ordered from least-significant trit (index 0 = 3^0) upward.
+ */
+function decimalToBalancedTrits(valueBigInt, count) {
+  let n = valueBigInt;
+  const trits = new Array(count).fill(0);
+  for (let i = 0; i < count; i++) {
+    if (n === 0n) break;
+    const rem = ((n % 3n) + 3n) % 3n;
+    if (rem === 0n) {
+      trits[i] = 0;
+      n = n / 3n;
+    } else if (rem === 1n) {
+      trits[i] = 1;
+      n = (n - 1n) / 3n;
+    } else {
+      trits[i] = -1;
+      n = (n + 1n) / 3n;
+    }
+  }
+  return trits;
+}
+
+/**
  * Computes balanced ternary decimal value and weighted delta-V^2 switching energy.
  */
 function computeTelemetry(cells, lastDeltaV2) {
@@ -757,6 +781,42 @@ export function mountTernaryFpgaScene(options) {
     fallbackObserver.observe(container);
   }
 
+  /**
+   * Plots a signed decimal integer across the hexagonal cells in balanced ternary,
+   * expanding the fabric mode automatically if the magnitude exceeds current capacity.
+   */
+  function setDecimalValue(rawInput) {
+    let n = typeof rawInput === 'bigint' ? rawInput : BigInt(rawInput);
+    const MAX_TRYTE7 = 1093n;
+    const MAX_WORD21 = 5230176601n;
+    if (n > MAX_WORD21) n = MAX_WORD21;
+    if (n < -MAX_WORD21) n = -MAX_WORD21;
+
+    const absN = n < 0n ? -n : n;
+    if (absN > 1n && currentMode === 'cell') {
+      setMode(absN <= MAX_TRYTE7 ? 'tryte6' : 'word21');
+    } else if (absN > MAX_TRYTE7 && (currentMode === 'tryte6' || currentMode === 'compare')) {
+      setMode('word21');
+    }
+
+    const trits = decimalToBalancedTrits(n, cells.length);
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i];
+      const prev = cell.state;
+      const next = trits[i];
+      if (prev !== next) {
+        cell.state = next;
+        const cost = Math.abs(next - prev) === 2 ? 1.0 : 0.25;
+        totalEnergyDeltaV2 += cost;
+        lastTransitionCost = cost;
+        applyCellVisuals(cell, false);
+        spawnEnergyWave(cell.x, cell.z, cost);
+      }
+    }
+    emitTelemetry();
+    return currentMode;
+  }
+
   window.addEventListener('themechange', syncTheme);
   syncTheme();
   setMode(initialMode);
@@ -764,6 +824,7 @@ export function mountTernaryFpgaScene(options) {
 
   return {
     setMode,
+    setDecimalValue,
     resetCamera: () => resetCameraForMode(currentMode),
     toggleClock: (forceState) => {
       isClockRunning = typeof forceState === 'boolean' ? forceState : !isClockRunning;
