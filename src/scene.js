@@ -691,14 +691,15 @@ export function mountTernaryFpgaScene(options) {
 
   // Resize handling
   function handleResize() {
-    const w = container.clientWidth || 640;
-    const h = container.clientHeight || 320;
+    const w = container.clientWidth || window.innerWidth || 640;
+    const h = container.clientHeight || window.innerHeight || 320;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h, false);
   }
   const resizeObserver = new ResizeObserver(handleResize);
   resizeObserver.observe(container);
+  window.addEventListener('resize', handleResize);
   handleResize();
 
   // Animation loop with visibility-aware pausing (contentvisibilityautostatechange + IO fallback).
@@ -810,6 +811,7 @@ export function mountTernaryFpgaScene(options) {
     destroy: () => {
       stopRenderLoop();
       resizeObserver.disconnect();
+      window.removeEventListener('resize', handleResize);
       if (fallbackObserver) fallbackObserver.disconnect();
       container.removeEventListener('contentvisibilityautostatechange', onContentVisibilityChange);
       window.removeEventListener('themechange', syncTheme);
