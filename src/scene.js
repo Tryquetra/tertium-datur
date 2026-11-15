@@ -549,11 +549,14 @@ export function mountTernaryFpgaScene(options) {
   }
 
   /**
-   * Cycles a ternary cell through {-1 -> 0 -> +1 -> -1} and logs delta-V^2 cost.
+   * Cycles a ternary cell clockwise (direction >= 0: 0 -> +1 -> -1 -> 0)
+   * or counter-clockwise (direction < 0: 0 -> -1 -> +1 -> 0) and logs delta-V^2 cost.
    */
-  function cycleCellState(cell) {
+  function cycleCellState(cell, direction = 1) {
     const prev = cell.state;
-    const next = prev === -1 ? 0 : prev === 0 ? 1 : -1;
+    const next = direction >= 0
+      ? (prev === 0 ? 1 : prev === 1 ? -1 : 0)
+      : (prev === 0 ? -1 : prev === -1 ? 1 : 0);
     cell.state = next;
 
     // Half-swing (0 <-> +/-1) dissipates 0.25 Vdd^2; full-swing (-1 <-> +1) dissipates 1.00 Vdd^2.
@@ -700,16 +703,22 @@ export function mountTernaryFpgaScene(options) {
   // Raycaster interaction: click any hex cell to cycle its trit, or binary square to toggle bit.
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  let pointerDownPos = { x: 0, y: 0 };
+  let pointerDownPos = { x: 0, y: 0, button: 0 };
 
   function handlePointerDown(ev) {
-    pointerDownPos = { x: ev.clientX, y: ev.clientY };
+    pointerDownPos = { x: ev.clientX, y: ev.clientY, button: ev.button };
+  }
+
+  function handleContextMenu(ev) {
+    ev.preventDefault();
   }
 
   function handlePointerUp(ev) {
+    const button = ev.button;
+    if (button !== 0 && button !== 2) return;
     const dx = ev.clientX - pointerDownPos.x;
     const dy = ev.clientY - pointerDownPos.y;
-    if (Math.hypot(dx, dy) > 6) return; // Ignore orbit drag gestures.
+    if (Math.hypot(dx, dy) > 6) return; // Ignore orbit/pan drag gestures.
 
     const rect = canvas.getBoundingClientRect();
     pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
@@ -722,7 +731,7 @@ export function mountTernaryFpgaScene(options) {
     const hitData = hits[0].object.userData;
     if (hitData.isHexCell) {
       const targetCell = cells[hitData.cellIndex];
-      if (targetCell) cycleCellState(targetCell);
+      if (targetCell) cycleCellState(targetCell, button === 2 ? -1 : 1);
     } else if (hitData.isBinaryTile) {
       const tile = binaryTiles[hitData.index];
       if (tile) {
@@ -739,6 +748,7 @@ export function mountTernaryFpgaScene(options) {
 
   canvas.addEventListener('pointerdown', handlePointerDown);
   canvas.addEventListener('pointerup', handlePointerUp);
+  canvas.addEventListener('contextmenu', handleContextMenu);
 
   // Resize handling
   function handleResize() {
@@ -953,6 +963,7 @@ export function mountTernaryFpgaScene(options) {
       window.removeEventListener('themechange', syncTheme);
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('contextmenu', handleContextMenu);
       sharedGlyphPlane.dispose();
       for (const s of TRIT_STATES) {
         sharedGlyphTextures[s].dispose();
