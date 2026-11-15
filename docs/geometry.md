@@ -74,13 +74,3 @@ The pairwise $L_1$ cubic distance between any two cluster centers is:
 $$d_{\text{hex}}(O_i, O_j) = \frac{|q_i - q_j| + |r_i - r_j| + |s_i - s_j|}{2} = \frac{3 + 3 + 0}{2} = 3$$
 
 Because each rosette has radius $1$, a center separation of $3$ guarantees that every tile in $O_i + \mathcal{N}$ is strictly disjoint from every tile in $O_j + \mathcal{N}$ ($i \ne j$), leaving the origin cell $(0, 0, 0)$ open to house the central Y-bus connecting all three 7-cell clusters into a unified 21-trit `Word21` fabric.
-
----
-
-## 5. Inter-Block Triple-Vertex Y-Nodes
-
-In a pointy-top lattice, adjacent tiles share two distinct triple-vertex orientations:
-1. Triangle $\{(q,r), (q+1,r), (q,r+1)\}$: shared edges meet at $90^\circ, 210^\circ, 330^\circ$ (rendered with a $\pi$ radian rotation around Y).
-2. Triangle $\{(q,r), (q+1,r-1), (q+1,r)\}$: shared edges meet at $30^\circ, 150^\circ, 270^\circ$ (rendered with $0$ radian rotation around Y).
-
-The scene generator scans both triangle classes across active coordinates in [`addInterBlockYNodes`](../src/scene.js) and places golden routing junctions at the exact triangle centroids.

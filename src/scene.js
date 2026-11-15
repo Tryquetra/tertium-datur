@@ -517,43 +517,6 @@ export function mountTernaryFpgaScene(options) {
   }
 
   /**
-   * Adds subtle inter-block golden Y routing nodes at every triple vertex shared by three hexes.
-   */
-  function addInterBlockYNodes(coords, scale = 0.22, yOffset = 0.14) {
-    const seen = new Set();
-    const nodeGeom = createYJunctionGeometry(HEX_RADIUS * scale, 0.055, 0.09);
-    const coordSet = new Set(coords.map((c) => `${c.q},${c.r}`));
-
-    const tryAddTriple = (c1, c2, c3, rotY) => {
-      const p1 = axialToXZ(c1.q, c1.r, PITCH_RADIUS);
-      const p2 = axialToXZ(c2.q, c2.r, PITCH_RADIUS);
-      const p3 = axialToXZ(c3.q, c3.r, PITCH_RADIUS);
-      const cx = (p1.x + p2.x + p3.x) / 3;
-      const cz = (p1.z + p2.z + p3.z) / 3;
-      const key = `${cx.toFixed(2)},${cz.toFixed(2)}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        const node = new THREE.Mesh(nodeGeom, goldMaterial);
-        node.position.set(cx, yOffset, cz);
-        node.rotation.y = rotY;
-        rootGroup.add(node);
-      }
-    };
-
-    for (const c of coords) {
-      const hasRight = coordSet.has(`${c.q + 1},${c.r}`);
-      const hasBottomRight = coordSet.has(`${c.q},${c.r + 1}`);
-      const hasTopRight = coordSet.has(`${c.q + 1},${c.r - 1}`);
-      if (hasRight && hasBottomRight) {
-        tryAddTriple(c, { q: c.q + 1, r: c.r }, { q: c.q, r: c.r + 1 }, Math.PI);
-      }
-      if (hasRight && hasTopRight) {
-        tryAddTriple(c, { q: c.q + 1, r: c.r - 1 }, { q: c.q + 1, r: c.r }, 0);
-      }
-    }
-  }
-
-  /**
    * Resets camera framing for the active geometric mode.
    */
   function resetCameraForMode(mode) {
@@ -588,7 +551,6 @@ export function mountTernaryFpgaScene(options) {
         const { x, z } = axialToXZ(c.q, c.r, PITCH_RADIUS);
         cells.push(createTernaryHexCell({ index: idx, x, z, initialState: pattern[idx] }));
       });
-      addInterBlockYNodes(coords);
     } else if (mode === 'word21') {
       const coords = getWord21Coords();
       coords.forEach((c, idx) => {
@@ -601,7 +563,6 @@ export function mountTernaryFpgaScene(options) {
       const macroY = new THREE.Mesh(macroYGeom, goldMaterial);
       macroY.position.set(0, 0.04, 0);
       rootGroup.add(macroY);
-      addInterBlockYNodes(coords);
     } else if (mode === 'compare') {
       // Left bank: 4x4 orthogonal square binary FPGA grid (inspired by user's first image).
       const boxGeom = new THREE.BoxGeometry(0.95, 0.16, 0.95);
