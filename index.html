@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tertium Datur: 3D Ternary FPGA Geometry Visualizer</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./node_modules/three/build/three.module.js",
+        "three/addons/": "./node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --background: #0b0f17;
+      --foreground: #e2e8f0;
+      --muted-foreground: #94a3b8;
+      --card: #111827;
+      --card-border: #1e293b;
+      --primary: #f5c542;
+      --primary-foreground: #0b0f17;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 14px;
+    }
+    .shell { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+    .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+    .modes { display: flex; flex-wrap: wrap; gap: 6px; }
+    button {
+      cursor: pointer;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--card-border);
+      background: transparent;
+      color: var(--muted-foreground);
+    }
+    button[aria-pressed="true"] {
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border-color: var(--primary);
+    }
+    .viewport {
+      width: 100%;
+      height: 520px;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      content-visibility: auto;
+      contain-intrinsic-size: auto none auto 520px;
+    }
+    canvas { width: 100%; height: 100%; display: block; }
+    .stats { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--muted-foreground); }
+    .stats strong { color: var(--foreground); font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="bar">
+      <div class="modes" role="group" aria-label="Ternary geometry modes">
+        <button type="button" data-mode="cell">1 Trit Y-Hex</button>
+        <button type="button" data-mode="tryte6">Tryte6 Rosette (7)</button>
+        <button type="button" data-mode="word21">Word21 Fabric (21)</button>
+        <button type="button" data-mode="compare">90° Square vs 120° Hex-Y</button>
+      </div>
+      <div class="modes">
+        <button type="button" id="btn-clock" aria-pressed="false">Ternary Pulse</button>
+        <button type="button" id="btn-reset">Reset Camera</button>
+      </div>
+    </div>
+
+    <div id="viewport-container" class="viewport">
+      <canvas id="fpga-canvas" aria-label="Interactive 3D ternary FPGA geometry visualizer"></canvas>
+    </div>
+
+    <div class="bar">
+      <div id="mode-note" style="font-size:12px;color:var(--muted-foreground)"></div>
+      <div class="stats">
+        <span>Value: <strong id="stat-decimal">0</strong></span>
+        <span>Trits: <strong id="stat-vector">0</strong></span>
+        <span>Energy dV^2: <strong id="stat-energy">0.00 Vdd^2</strong></span>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="./src/ui.js"></script>
+</body>
+</html>

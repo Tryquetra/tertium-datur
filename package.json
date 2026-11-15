@@ -1,0 +1,14 @@
+{
+  "name": "tertium-datur",
+  "version": "0.1.0",
+  "description": "Isotropic 120-degree Y-junction and hexagonal tessellation 3D visualizer for balanced ternary {-1, 0, +1} FPGA fabrics in Three.js",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "bun --hot index.html",
+    "build": "bun build ./src/ui.js --minify --outfile ./dist/bundle.js"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  }
+}
