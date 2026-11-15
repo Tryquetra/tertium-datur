@@ -81,4 +81,19 @@ To generate the minified standalone bundle in `dist/bundle.js`:
 bun run build
 ```
 
+---
+
+## Hardware FPGA Implementation (Tang Nano 20K)
+
+The [`fpga/`](fpga/README.md) directory targets the Sipeed Tang Nano 20K (`GW2AR-18C`) with all three physical hardware representations of *Tertium Datur*:
+
+1. **Physical Pushbuttons and One-Hot LEDs** (`I_btn[1:0]`, `O_led_n[5:0]`): Cycle `trit[0]` clockwise or counter-clockwise, tap both buttons simultaneously to negate (`+1 <-> -1`), or hold both to reset.
+2. **UART Serial Bridge (`115200 8N1`)**: Execute `c`, `a`, `i`, `r`, `m`, `?`, and `d<int>` (`[-1093, +1093]`) commands from [`fpga/serial_ctrl.js`](fpga/serial_ctrl.js).
+3. **Procedural 640x480 HDMI Output**: Real-time vector rendering of the golden $120^\circ$ Y-hexagon (`single` with `-`/`0`/`+` glyphs and `tryte6` 7-cell rosette) directly from `clk_pix`.
+
+```sh
+./fpga/build.sh --flash
+bun fpga/serial_ctrl.js /dev/ttyUSB1 ? d50 i r
+```
+
 Licensed under the MIT (Massachusetts Institute of Technology, permissive open-source software license) License; see [`LICENSE`](LICENSE).
