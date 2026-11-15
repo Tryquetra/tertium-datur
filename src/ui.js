@@ -18,6 +18,7 @@ export function initTernaryFpgaUi() {
   const resetBtn = document.getElementById('btn-reset');
   const decimalInput = document.getElementById('input-decimal');
   const plotBtn = document.getElementById('btn-plot');
+  const invertBtn = document.getElementById('btn-invert');
   const modeNoteEl = document.getElementById('mode-note');
   const decimalEl = document.getElementById('stat-decimal');
   const vectorEl = document.getElementById('stat-vector');
@@ -103,6 +104,16 @@ export function initTernaryFpgaUi() {
     plotBtn.addEventListener('click', handlePlotDecimal);
   }
 
+  if (invertBtn) {
+    invertBtn.addEventListener('click', () => {
+      const newDecimal = controller.invertValues();
+      if (decimalInput && decimalInput.value.trim() !== '') {
+        decimalInput.value = newDecimal;
+        decimalInput.classList.remove('input-error', 'border-red-500');
+      }
+    });
+  }
+
   if (decimalInput) {
     decimalInput.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') handlePlotDecimal();
@@ -114,7 +125,15 @@ export function initTernaryFpgaUi() {
 
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
-      controller.resetCamera();
+      controller.resetScene();
+      if (decimalInput) {
+        decimalInput.value = '';
+        decimalInput.classList.remove('input-error', 'border-red-500');
+      }
+      if (clockBtn) {
+        clockBtn.textContent = clockBtn.dataset.idleLabel || 'Ternary Pulse';
+        clockBtn.setAttribute('aria-pressed', 'false');
+      }
     });
   }
 

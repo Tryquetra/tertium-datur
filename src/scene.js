@@ -541,9 +541,11 @@ export function mountTernaryFpgaScene(options) {
   }
 
   /**
-   * Resets camera framing for the active geometric mode.
+   * Resets camera framing for the active geometric mode without damping inertia.
    */
   function resetCameraForMode(mode) {
+    const prevDamping = controls.enableDamping;
+    controls.enableDamping = false;
     controls.target.set(0, 0, 0);
     if (mode === 'cell') {
       camera.position.set(0, 3.2, 3.4);
@@ -554,7 +556,9 @@ export function mountTernaryFpgaScene(options) {
     } else {
       camera.position.set(0, 8.2, 8.8);
     }
-    controls.update();
+    controls.saveState();
+    controls.reset();
+    controls.enableDamping = prevDamping;
   }
 
   /**
@@ -601,7 +605,7 @@ export function mountTernaryFpgaScene(options) {
           const x = (col - 1.5) * 1.16;
           const z = (row - 1.5) * 1.16;
           tile.position.set(x, active ? 0.12 : 0.06, z);
-          tile.userData = { isBinaryTile: true, active, index: row * 4 + col };
+          tile.userData = { isBinaryTile: true, active, initialActive: active, index: row * 4 + col };
           const wire = new THREE.LineSegments(boxWireGeom, edgeLineMaterial);
           tile.add(wire);
           squareGroup.add(tile);
@@ -817,6 +821,52 @@ export function mountTernaryFpgaScene(options) {
     return currentMode;
   }
 
+  /**
+   * Negates every trit symmetrically (t -> -t): +1 becomes -1, -1 becomes +1, 0 stays 0.
+   */
+  function invertValues() {
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i];
+      if (cell.state !== 0) {
+        cell.state = -cell.state;
+        const cost = 1.0;
+        totalEnergyDeltaV2 += cost;
+        lastTransitionCost = cost;
+        applyCellVisuals(cell, false);
+        spawnEnergyWave(cell.x, cell.z, cost);
+      }
+    }
+    emitTelemetry();
+    return computeTelemetry(cells, lastTransitionCost).decimal;
+  }
+
+  /**
+   * Restores all cells to neutral 0, clears switching telemetry, stops the pulse clock,
+   * and resets camera framing for the active mode.
+   */
+  function resetScene() {
+    isClockRunning = false;
+    clockAccumulator = 0;
+    clockCursor = 0;
+    totalEnergyDeltaV2 = 0;
+    lastTransitionCost = 0;
+
+    for (const cell of cells) {
+      cell.state = 0;
+      applyCellVisuals(cell, false);
+    }
+
+    for (const tile of binaryTiles) {
+      const initial = tile.userData.initialActive ?? false;
+      tile.userData.active = initial;
+      tile.material = initial ? binaryTileActiveMat : binaryTileIdleMat;
+      tile.position.y = initial ? 0.12 : 0.06;
+    }
+
+    resetCameraForMode(currentMode);
+    emitTelemetry();
+  }
+
   window.addEventListener('themechange', syncTheme);
   syncTheme();
   setMode(initialMode);
@@ -825,7 +875,9 @@ export function mountTernaryFpgaScene(options) {
   return {
     setMode,
     setDecimalValue,
-    resetCamera: () => resetCameraForMode(currentMode),
+    invertValues,
+    resetScene,
+    resetCamera: resetScene,
     toggleClock: (forceState) => {
       isClockRunning = typeof forceState === 'boolean' ? forceState : !isClockRunning;
       return isClockRunning;
