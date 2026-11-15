@@ -6,6 +6,7 @@ out
 dist
 *.tgz
 fpga/build
+abc.history
 
 # code coverage
 coverage
