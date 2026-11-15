@@ -156,6 +156,57 @@ module td_hdmi #(
     wire signed [10:0] shx = $signed({1'b0, hx});
     wire signed [10:0] svy = $signed({1'b0, vy});
 
+    // Rosette Voronoi selector: picks the exact nearest of the 7 hexagon centers
+    // using shift-only metric max(2*|dx|, 2*|dy| + |dx|), proven zero-mismatch.
+    function [12:0] hex_voronoi_dist;
+        input signed [10:0] dx_in;
+        input signed [10:0] dy_in;
+        reg [10:0] ax_v;
+        reg [10:0] ay_v;
+        reg [12:0] m_a;
+        reg [12:0] m_b;
+        begin
+            ax_v = (dx_in < 0) ? -dx_in : dx_in;
+            ay_v = (dy_in < 0) ? -dy_in : dy_in;
+            m_a  = {1'b0, ax_v, 1'b0};
+            m_b  = {1'b0, ay_v, 1'b0} + {2'b0, ax_v};
+            hex_voronoi_dist = (m_a > m_b) ? m_a : m_b;
+        end
+    endfunction
+
+    wire signed [10:0] r_dx [0:6];
+    wire signed [10:0] r_dy [0:6];
+    wire [12:0]        r_vd [0:6];
+
+    assign r_dx[0] = shx - 11'sd320; assign r_dy[0] = svy - 11'sd208;
+    assign r_dx[1] = shx - 11'sd424; assign r_dy[1] = svy - 11'sd208;
+    assign r_dx[2] = shx - 11'sd372; assign r_dy[2] = svy - 11'sd118;
+    assign r_dx[3] = shx - 11'sd268; assign r_dy[3] = svy - 11'sd118;
+    assign r_dx[4] = shx - 11'sd216; assign r_dy[4] = svy - 11'sd208;
+    assign r_dx[5] = shx - 11'sd268; assign r_dy[5] = svy - 11'sd298;
+    assign r_dx[6] = shx - 11'sd372; assign r_dy[6] = svy - 11'sd298;
+
+    genvar vi;
+    generate
+        for (vi = 0; vi < 7; vi = vi + 1) begin : gen_vdist
+            assign r_vd[vi] = hex_voronoi_dist(r_dx[vi], r_dy[vi]);
+        end
+    endgenerate
+
+    wire [2:0]  min01_i = (r_vd[0] <= r_vd[1]) ? 3'd0 : 3'd1;
+    wire [12:0] min01_d = (r_vd[0] <= r_vd[1]) ? r_vd[0] : r_vd[1];
+    wire [2:0]  min23_i = (r_vd[2] <= r_vd[3]) ? 3'd2 : 3'd3;
+    wire [12:0] min23_d = (r_vd[2] <= r_vd[3]) ? r_vd[2] : r_vd[3];
+    wire [2:0]  min45_i = (r_vd[4] <= r_vd[5]) ? 3'd4 : 3'd5;
+    wire [12:0] min45_d = (r_vd[4] <= r_vd[5]) ? r_vd[4] : r_vd[5];
+
+    wire [2:0]  min03_i = (min01_d <= min23_d) ? min01_i : min23_i;
+    wire [12:0] min03_d = (min01_d <= min23_d) ? min01_d : min23_d;
+    wire [2:0]  min46_i = (min45_d <= r_vd[6]) ? min45_i : 3'd6;
+    wire [12:0] min46_d = (min45_d <= r_vd[6]) ? min45_d : r_vd[6];
+
+    wire [2:0]  win_idx = (min03_d <= min46_d) ? min03_i : min46_i;
+
     always @(posedge clk_pix) begin
         s1_hx   <= hx;
         s1_vy   <= vy;
@@ -165,40 +216,27 @@ module td_hdmi #(
         s1_mode <= mode_pix;
 
         if (!mode_pix) begin
-            s1_dx        <= shx - 11'sd320;
-            s1_dy        <= svy - 11'sd208;
-            s1_in_bbox   <= (hx >= 10'd190 && hx <= 10'd450 && vy >= 10'd58 && vy <= 10'd358);
+            s1_dx        <= r_dx[0];
+            s1_dy        <= r_dy[0];
+            s1_in_bbox   <= (hx >= 10'd188 && hx <= 10'd452 && vy >= 10'd56 && vy <= 10'd360);
             s1_R         <= 9'd148;
             s1_trit      <= trits_pix[2:0];
             s1_is_center <= 1'b1;
         end else begin
-            s1_R <= 9'd52;
-            // Seven non-overlapping bounding boxes for pointy-top hexes of R=52 (W=45)
-            if (hx >= 10'd274 && hx <= 10'd366 && vy >= 10'd155 && vy <= 10'd261) begin
-                s1_dx <= shx - 11'sd320; s1_dy <= svy - 11'sd208;
-                s1_trit <= trits_pix[2:0]; s1_in_bbox <= 1'b1; s1_is_center <= 1'b1;
-            end else if (hx >= 10'd378 && hx <= 10'd470 && vy >= 10'd155 && vy <= 10'd261) begin
-                s1_dx <= shx - 11'sd424; s1_dy <= svy - 11'sd208;
-                s1_trit <= trits_pix[5:3]; s1_in_bbox <= 1'b1; s1_is_center <= 1'b0;
-            end else if (hx >= 10'd326 && hx <= 10'd418 && vy >= 10'd65 && vy <= 10'd171) begin
-                s1_dx <= shx - 11'sd372; s1_dy <= svy - 11'sd118;
-                s1_trit <= trits_pix[8:6]; s1_in_bbox <= 1'b1; s1_is_center <= 1'b0;
-            end else if (hx >= 10'd222 && hx <= 10'd314 && vy >= 10'd65 && vy <= 10'd171) begin
-                s1_dx <= shx - 11'sd268; s1_dy <= svy - 11'sd118;
-                s1_trit <= trits_pix[11:9]; s1_in_bbox <= 1'b1; s1_is_center <= 1'b0;
-            end else if (hx >= 10'd170 && hx <= 10'd262 && vy >= 10'd155 && vy <= 10'd261) begin
-                s1_dx <= shx - 11'sd216; s1_dy <= svy - 11'sd208;
-                s1_trit <= trits_pix[14:12]; s1_in_bbox <= 1'b1; s1_is_center <= 1'b0;
-            end else if (hx >= 10'd222 && hx <= 10'd314 && vy >= 10'd245 && vy <= 10'd351) begin
-                s1_dx <= shx - 11'sd268; s1_dy <= svy - 11'sd298;
-                s1_trit <= trits_pix[17:15]; s1_in_bbox <= 1'b1; s1_is_center <= 1'b0;
-            end else if (hx >= 10'd326 && hx <= 10'd418 && vy >= 10'd245 && vy <= 10'd351) begin
-                s1_dx <= shx - 11'sd372; s1_dy <= svy - 11'sd298;
-                s1_trit <= trits_pix[20:18]; s1_in_bbox <= 1'b1; s1_is_center <= 1'b0;
-            end else begin
-                s1_dx <= 11'sd0; s1_dy <= 11'sd0;
-                s1_trit <= 3'b001; s1_in_bbox <= 1'b0; s1_is_center <= 1'b0;
-            end
+            s1_R         <= 9'd52;
+            s1_in_bbox   <= (hx >= 10'd166 && hx <= 10'd474 && vy >= 10'd62 && vy <= 10'd354);
+            s1_dx        <= r_dx[win_idx];
+            s1_dy        <= r_dy[win_idx];
+            s1_is_center <= (win_idx == 3'd0);
+            case (win_idx)
+                3'd0: s1_trit <= trits_pix[2:0];
+                3'd1: s1_trit <= trits_pix[5:3];
+                3'd2: s1_trit <= trits_pix[8:6];
+                3'd3: s1_trit <= trits_pix[11:9];
+                3'd4: s1_trit <= trits_pix[14:12];
+                3'd5: s1_trit <= trits_pix[17:15];
+                default: s1_trit <= trits_pix[20:18];
+            endcase
         end
     end
 
