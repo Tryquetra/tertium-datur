@@ -16,6 +16,8 @@ const SECTOR_CONFIG = {
     activeColor: 0xe2e8f0,
     activeEmissive: 0x475569,
     inactiveColor: 0x262b36,
+    glyphActiveColor: 0x0f172a,
+    glyphInactiveColor: 0x94a3b8,
     label: '0'
   },
   [-1]: {
@@ -25,6 +27,8 @@ const SECTOR_CONFIG = {
     activeColor: 0x38bdf8,
     activeEmissive: 0x0369a1,
     inactiveColor: 0x162436,
+    glyphActiveColor: 0x082f49,
+    glyphInactiveColor: 0x7dd3fc,
     label: '-1'
   },
   1: {
@@ -34,6 +38,8 @@ const SECTOR_CONFIG = {
     activeColor: 0xfb923c,
     activeEmissive: 0xc2410c,
     inactiveColor: 0x332018,
+    glyphActiveColor: 0x431407,
+    glyphInactiveColor: 0xfdba74,
     label: '+1'
   }
 };
@@ -368,6 +374,35 @@ export function mountTernaryFpgaScene(options) {
     1: new THREE.EdgesGeometry(sharedSectorGeoms[1], 20)
   };
 
+  /**
+   * Renders a centered white glyph ('-', '0', or '+') into a CanvasTexture for didactic mode.
+   */
+  function createGlyphTexture(symbol) {
+    const size = 256;
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 156px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(symbol, size / 2, size / 2 + 4);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  const sharedGlyphPlane = new THREE.PlaneGeometry(0.42, 0.42);
+  sharedGlyphPlane.rotateX(-Math.PI / 2);
+  const sharedGlyphTextures = {
+    [-1]: createGlyphTexture('-'),
+    0: createGlyphTexture('0'),
+    1: createGlyphTexture('+')
+  };
+
   const rootGroup = new THREE.Group();
   scene.add(rootGroup);
 
@@ -432,9 +467,31 @@ export function mountTernaryFpgaScene(options) {
       const sectorWire = new THREE.LineSegments(sharedSectorEdges[s], edgeLineMaterial);
       sectorMesh.add(sectorWire);
 
+      let glyphMat = null;
+      if (cellMeta.showGlyphs) {
+        glyphMat = new THREE.MeshBasicMaterial({
+          map: sharedGlyphTextures[s],
+          color: cfg.glyphInactiveColor,
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -1
+        });
+        const glyphMesh = new THREE.Mesh(sharedGlyphPlane, glyphMat);
+        const midRad = cfg.midDeg * DEG2RAD;
+        const glyphRadius = (HEX_RADIUS - 0.04) * 0.5;
+        glyphMesh.position.set(
+          Math.cos(midRad) * glyphRadius,
+          SECTOR_DEPTH + 0.028,
+          -Math.sin(midRad) * glyphRadius
+        );
+        sectorMesh.add(glyphMesh);
+      }
+
       cellGroup.add(sectorMesh);
       interactiveMeshes.push(sectorMesh);
-      sectors[s] = { mesh: sectorMesh, mat, targetY: 0.02 };
+      sectors[s] = { mesh: sectorMesh, mat, glyphMat, targetY: 0.02 };
     }
 
     const cell = {
@@ -460,6 +517,10 @@ export function mountTernaryFpgaScene(options) {
       sector.mat.color.setHex(active ? cfg.activeColor : cfg.inactiveColor);
       sector.mat.emissive.setHex(active ? cfg.activeEmissive : 0x000000);
       sector.mat.emissiveIntensity = active ? 0.65 : 0;
+      if (sector.glyphMat) {
+        sector.glyphMat.color.setHex(active ? cfg.glyphActiveColor : cfg.glyphInactiveColor);
+        sector.glyphMat.opacity = active ? 0.95 : 0.85;
+      }
       sector.targetY = active ? 0.11 : 0.015;
       if (immediate) {
         sector.mesh.position.y = sector.targetY;
@@ -530,6 +591,7 @@ export function mountTernaryFpgaScene(options) {
     for (const c of cells) {
       for (const s of TRIT_STATES) {
         c.sectors[s].mat.dispose();
+        if (c.sectors[s].glyphMat) c.sectors[s].glyphMat.dispose();
       }
     }
     cells = [];
@@ -571,7 +633,7 @@ export function mountTernaryFpgaScene(options) {
     clearSceneGroup();
 
     if (mode === 'cell') {
-      cells.push(createTernaryHexCell({ index: 0, x: 0, z: 0, initialState: 0 }));
+      cells.push(createTernaryHexCell({ index: 0, x: 0, z: 0, initialState: 0, showGlyphs: true }));
     } else if (mode === 'tryte6') {
       const coords = getRosetteCoords(0, 0);
       const pattern = [0, 1, -1, 0, 1, -1, 1];
@@ -891,6 +953,10 @@ export function mountTernaryFpgaScene(options) {
       window.removeEventListener('themechange', syncTheme);
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointerup', handlePointerUp);
+      sharedGlyphPlane.dispose();
+      for (const s of TRIT_STATES) {
+        sharedGlyphTextures[s].dispose();
+      }
       renderer.dispose();
     }
   };
